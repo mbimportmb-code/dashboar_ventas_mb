@@ -380,7 +380,10 @@ async function loadData(){
   document.getElementById('loadingOverlay').style.display='flex';
   try{
     // Fetch directamente desde Google Apps Script Web App
-    const resp = await fetch('https://script.google.com/macros/s/AKfycbxhQM5cRoRZt86NNSyFAri6qitr8rRJJSZ5STa_ALOcGd5AytmmkG0Er1CG0Ws6JzX9/exec');
+    const resp = await fetch('https://script.google.com/macros/s/AKfycbxhQM5cRoRZt86NNSyFAri6qitr8rRJJSZ5STa_ALOcGd5AytmmkG0Er1CG0Ws6JzX9/exec', {{
+      redirect: 'follow',
+      mode: 'cors'
+    }});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     RAW = await resp.json();
     // Update subtitle with last date
