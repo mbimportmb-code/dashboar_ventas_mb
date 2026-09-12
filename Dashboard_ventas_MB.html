@@ -1338,7 +1338,7 @@ function renderTable(data){
   </tr>`;
 }
 
-loadData();
+window.addEventListener('load', loadData);
 </script>
 
 <div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(10,13,28,.92);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:16px">
