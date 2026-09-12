@@ -375,18 +375,11 @@ function parseCSV(text){
 
 let RAW = [];
 
-async function loadData(){
-  // Show loading state
+function loadData(){
   document.getElementById('loadingOverlay').style.display='flex';
-  try{
-    // Fetch directamente desde Google Apps Script Web App
-    const resp = await fetch('https://script.google.com/macros/s/AKfycbxhQM5cRoRZt86NNSyFAri6qitr8rRJJSZ5STa_ALOcGd5AytmmkG0Er1CG0Ws6JzX9/exec', {{
-      redirect: 'follow',
-      mode: 'cors'
-    }});
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    RAW = await resp.json();
-    // Update subtitle with last date
+  // JSONP — evita problemas de CORS con Google Apps Script
+  window._dashCallback = function(data){
+    RAW = data;
     const dates = RAW.map(v=>v.fechaISO).filter(Boolean).sort();
     if(dates.length){
       const last = dates[dates.length-1];
@@ -395,10 +388,14 @@ async function loadData(){
     }
     document.getElementById('loadingOverlay').style.display='none';
     render();
-  } catch(e){
+  };
+  const script = document.createElement('script');
+  script.src = 'https://script.google.com/macros/s/AKfycbxhQM5cRoRZt86NNSyFAri6qitr8rRJJSZ5STa_ALOcGd5AytmmkG0Er1CG0Ws6JzX9/exec?callback=_dashCallback';
+  script.onerror = function(){
     document.getElementById('loadingOverlay').innerHTML=
-      '<div style="text-align:center"><p style="color:#ff4f6b;font-size:1.1rem">⚠️ Error al cargar datos</p><p style="color:#7a82a6;font-size:.85rem">'+e.message+'</p><button onclick="loadData()" style="margin-top:12px;padding:8px 20px;background:#4f7cff;border:none;border-radius:6px;color:#fff;cursor:pointer">Reintentar</button></div>';
-  }
+      '<div style="text-align:center"><p style="color:#ff4f6b">⚠️ Error al cargar datos</p><button onclick="loadData()" style="margin-top:12px;padding:8px 20px;background:#4f7cff;border:none;border-radius:6px;color:#fff;cursor:pointer">Reintentar</button></div>';
+  };
+  document.head.appendChild(script);
 }
 
 
