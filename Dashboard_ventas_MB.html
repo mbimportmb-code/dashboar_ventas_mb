@@ -380,6 +380,7 @@ function loadData(){
   // JSONP — evita problemas de CORS con Google Apps Script
   window._dashCallback = function(data){
     RAW = data;
+    initFromData();
     const dates = RAW.map(v=>v.fechaISO).filter(Boolean).sort();
     if(dates.length){
       const last = dates[dates.length-1];
@@ -424,38 +425,53 @@ function normProv(p){
   return map[p] || p;
 }
 
-RAW.forEach(v => {
-  v.nombre = NOMBRE_MAP[v.id] || v.nombre;
-  const [d,m,y] = v.fecha.split('-');
-  v.fechaISO = y+'-'+m+'-'+d;
-  v.diaNum = parseInt(d);
-  v.mesNum = parseInt(m);
-  v.yearNum = parseInt(y);
-  v.provincia = normProv(v.provincia);
-});
+// ── Estos valores dependen de RAW, que llega async vía JSONP.
+// No se calculan acá arriba (RAW todavía está vacío en este punto del parseo) —
+// se calculan en initFromData(), llamada desde _dashCallback una vez que RAW tiene datos reales.
+let ALL_MESES = [];
+let HOY = new Date();
+let HOY_MES = '';
+let HOY_DIA = 1;
 
-const ALL_MESES = [...new Set(RAW.map(v=>v.mes))].sort();
-// HOY calculado dinámicamente del último dato disponible
-const HOY = new Date([...RAW].sort((a,b)=>a.fechaISO>b.fechaISO?-1:1)[0].fechaISO);
-const HOY_MES = ALL_MESES[ALL_MESES.length-1]; // último mes con datos
-// HOY_DIA calculado automáticamente del último día con ventas en el mes actual
-const HOY_DIA = Math.max(...RAW.filter(v=>v.mes===HOY_MES).map(v=>v.diaNum));
+function initFromData(){
+  RAW.forEach(v => {
+    v.nombre = NOMBRE_MAP[v.id] || v.nombre;
+    const [d,m,y] = v.fecha.split('-');
+    v.fechaISO = y+'-'+m+'-'+d;
+    v.diaNum = parseInt(d);
+    v.mesNum = parseInt(m);
+    v.yearNum = parseInt(y);
+    v.provincia = normProv(v.provincia);
+  });
+
+  ALL_MESES = [...new Set(RAW.map(v=>v.mes))].sort();
+  if(RAW.length){
+    // HOY calculado dinámicamente del último dato disponible
+    HOY = new Date([...RAW].sort((a,b)=>a.fechaISO>b.fechaISO?-1:1)[0].fechaISO);
+    HOY_MES = ALL_MESES[ALL_MESES.length-1]; // último mes con datos
+    // HOY_DIA calculado automáticamente del último día con ventas en el mes actual
+    HOY_DIA = Math.max(...RAW.filter(v=>v.mes===HOY_MES).map(v=>v.diaNum));
+  }
+
+  // Populate product multi-select (antes vivía suelto a nivel de módulo — también
+  // dependía de RAW estar listo, mismo bug)
+  const prods = [...new Set(RAW.map(v=>v.nombre))].sort();
+  const prodOpts = document.getElementById('prodOpts');
+  prodOpts.innerHTML = '';
+  prods.forEach(p=>{
+    const lbl = document.createElement('label');
+    lbl.className='ms-opt';
+    lbl.innerHTML=`<input type="checkbox" value="${p}" onchange="handleOpt('prod',this)" checked> ${p}`;
+    prodOpts.appendChild(lbl);
+  });
+}
+
 let currentView = 'last3';
 let selectedDetallePeriod = null; // periodo seleccionado en gráfico detalle
 let _lastDetalleData = [];   // última data pasada a renderDetalle
 let _lastDetalleKeys = [];   // últimas keys (fechaISO o mes) del gráfico detalle
 let modes = {prod:'monto', prov:'monto', acum:'monto', detalle:'monto'};
 let charts = {};
-
-// Populate product multi-select
-const prods = [...new Set(RAW.map(v=>v.nombre))].sort();
-const prodOpts = document.getElementById('prodOpts');
-prods.forEach(p=>{
-  const lbl = document.createElement('label');
-  lbl.className='ms-opt';
-  lbl.innerHTML=`<input type="checkbox" value="${p}" onchange="handleOpt('prod',this)" checked> ${p}`;
-  prodOpts.appendChild(lbl);
-});
 
 // Close dropdowns when clicking outside
 document.addEventListener('click', e=>{
