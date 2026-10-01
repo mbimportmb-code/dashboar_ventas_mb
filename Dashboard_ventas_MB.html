@@ -64,6 +64,8 @@
   .ms-opt{display:flex;align-items:center;gap:8px;padding:6px 14px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap;}
   .ms-opt:hover{background:var(--surface2);}
   .ms-opt input{accent-color:var(--accent);cursor:pointer;}
+  .dia-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:6px 8px;}
+  .dia-opt{padding:4px;justify-content:center;gap:3px;}
   @media(max-width:768px){.g2{grid-template-columns:1fr;}.main{padding:12px;}}
 </style>
 </head>
@@ -99,6 +101,22 @@
         <label class="ms-opt"><input type="checkbox" value="WHATSAPP" onchange="handleOpt('canal',this)" checked> WhatsApp</label>
         <label class="ms-opt"><input type="checkbox" value="INSTAGRAM" onchange="handleOpt('canal',this)" checked> Instagram</label>
         <label class="ms-opt"><input type="checkbox" value="PERSONAL" onchange="handleOpt('canal',this)" checked> Personal</label>
+      </div>
+    </div>
+    <!-- Multi-select mes -->
+    <div style="position:relative" id="mesDropWrap">
+      <button class="ms-btn" onclick="toggleDrop('mes')" id="mesDropBtn">Todos los meses ▾</button>
+      <div class="ms-dropdown" id="mesDrop" style="display:none;min-width:160px">
+        <label class="ms-opt"><input type="checkbox" value="__all__" onchange="handleAll('mes',this)" checked> Todos</label>
+        <div id="mesOpts"></div>
+      </div>
+    </div>
+    <!-- Multi-select día del mes -->
+    <div style="position:relative" id="diaDropWrap">
+      <button class="ms-btn" onclick="toggleDrop('dia')" id="diaDropBtn">Todos los días ▾</button>
+      <div class="ms-dropdown" id="diaDrop" style="display:none;min-width:220px">
+        <label class="ms-opt"><input type="checkbox" value="__all__" onchange="handleAll('dia',this)" checked> Todos</label>
+        <div id="diaOpts" class="dia-grid"></div>
       </div>
     </div>
   </div>
@@ -464,7 +482,30 @@ function initFromData(){
     lbl.innerHTML=`<input type="checkbox" value="${p}" onchange="handleOpt('prod',this)" checked> ${p}`;
     prodOpts.appendChild(lbl);
   });
+
+  // Populate mes multi-select (depende de ALL_MESES, recién calculado arriba)
+  const mesOpts = document.getElementById('mesOpts');
+  mesOpts.innerHTML = '';
+  ALL_MESES.forEach(m=>{
+    const lbl = document.createElement('label');
+    lbl.className='ms-opt';
+    lbl.innerHTML=`<input type="checkbox" value="${m}" onchange="handleOpt('mes',this)" checked> ${mesLabel(m)}`;
+    mesOpts.appendChild(lbl);
+  });
 }
+
+function mesLabel(m){ const [y,mm]=m.split('-'); return MES_NAMES[parseInt(mm)-1]+' '+y; }
+
+// Populate día-del-mes multi-select (1–31, estático, no depende de RAW)
+(function(){
+  const diaOpts = document.getElementById('diaOpts');
+  for(let d=1; d<=31; d++){
+    const lbl = document.createElement('label');
+    lbl.className='ms-opt dia-opt';
+    lbl.innerHTML=`<input type="checkbox" value="${d}" onchange="handleOpt('dia',this)" checked><span>${d}</span>`;
+    diaOpts.appendChild(lbl);
+  }
+})();
 
 let currentView = 'last3';
 let selectedDetallePeriod = null; // periodo seleccionado en gráfico detalle
@@ -473,9 +514,12 @@ let _lastDetalleKeys = [];   // últimas keys (fechaISO o mes) del gráfico deta
 let modes = {prod:'monto', prov:'monto', acum:'monto', detalle:'monto'};
 let charts = {};
 
+const MS_IDS = ['prod','canal','mes','dia'];
+const MS_LABELS = {prod:'Todos los productos', canal:'Todos los canales', mes:'Todos los meses', dia:'Todos los días'};
+
 // Close dropdowns when clicking outside
 document.addEventListener('click', e=>{
-  ['prod','canal'].forEach(id=>{
+  MS_IDS.forEach(id=>{
     const wrap = document.getElementById(id+'DropWrap');
     if(wrap && !wrap.contains(e.target)){
       document.getElementById(id+'Drop').style.display='none';
@@ -485,8 +529,10 @@ document.addEventListener('click', e=>{
 
 function toggleDrop(id){
   const drop = document.getElementById(id+'Drop');
-  const other = id==='prod'?'canal':'prod';
-  document.getElementById(other+'Drop').style.display='none';
+  MS_IDS.filter(other=>other!==id).forEach(other=>{
+    const d = document.getElementById(other+'Drop');
+    if(d) d.style.display='none';
+  });
   drop.style.display = drop.style.display==='none'?'block':'none';
 }
 
@@ -511,10 +557,12 @@ function updateBtnLabel(id){
   const allCb = drop.querySelector('input[value="__all__"]');
   const btn = document.getElementById(id+'DropBtn');
   if(allCb.checked){
-    btn.textContent = (id==='prod'?'Todos los productos':'Todos los canales')+' ▾';
+    btn.textContent = (MS_LABELS[id]||'Todos')+' ▾';
   } else {
     const sel = [...drop.querySelectorAll('input:not([value="__all__"])')].filter(o=>o.checked).map(o=>o.value);
-    btn.textContent = sel.length===0?'Ninguno ▾':sel.length===1?sel[0]+' ▾':sel.length+' seleccionados ▾';
+    if(sel.length===0) btn.textContent='Ninguno ▾';
+    else if(sel.length===1) btn.textContent=(id==='mes'?mesLabel(sel[0]):sel[0])+' ▾';
+    else btn.textContent=sel.length+' seleccionados ▾';
   }
 }
 
@@ -559,10 +607,14 @@ function filterData(){
   const meses = getMeses(currentView);
   const selProd = getSelected('prod');
   const selCanal = getSelected('canal');
+  const selMes = getSelected('mes');
+  const selDia = getSelected('dia');
   let base = RAW.filter(v =>
     meses.includes(v.mes) &&
     (selProd==='__all__' || selProd.includes(v.nombre)) &&
-    (selCanal==='__all__' || selCanal.includes(v.canal))
+    (selCanal==='__all__' || selCanal.includes(v.canal)) &&
+    (selMes==='__all__' || selMes.includes(v.mes)) &&
+    (selDia==='__all__' || selDia.includes(String(v.diaNum)))
   );
   if(currentView==='last30'){
     const cut = new Date(HOY); cut.setDate(cut.getDate()-30);
