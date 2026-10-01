@@ -599,8 +599,11 @@ function getMeses(view){
   return ALL_MESES;
 }
 
-function isShortPeriod(view){
-  return view === 'last30' || view === 'last60' || view === 'curmonth';
+function isShortPeriod(){
+  // Diario si el botón de Período ya pedía corto, O si Mes/Día (selección múltiple)
+  // están acotando la data — ahí el eje mensual no sirve, hay que ver el detalle diario.
+  if(currentView === 'last30' || currentView === 'last60' || currentView === 'curmonth') return true;
+  return getSelected('mes') !== '__all__' || getSelected('dia') !== '__all__';
 }
 
 function filterData(){
@@ -1084,7 +1087,7 @@ function render(){
 }
 
 function renderEvolutivo(data){
-  const short = isShortPeriod(currentView);
+  const short = isShortPeriod();
   let labels=[], montos=[], netos=[], txs=[];
 
   if(short){
@@ -1227,7 +1230,7 @@ function renderAcum(data){
 }
 
 function renderDetalle(data){
-  const short = isShortPeriod(currentView);
+  const short = isShortPeriod();
   // Build day-level or month-level data
   let labels=[], montos=[], txs=[];
   if(short){
@@ -1347,7 +1350,7 @@ function renderDetalle(data){
           document.getElementById('detalleBadgeText').textContent = label;
           document.getElementById('detalleBadge').style.display='inline-flex';
         }
-        const short2 = isShortPeriod(currentView);
+        const short2 = isShortPeriod();
         const filteredForTable = selectedDetallePeriod === null ? _lastDetalleData :
           _lastDetalleData.filter(v => short2 ? v.fechaISO === selectedDetallePeriod : v.mes === selectedDetallePeriod);
         renderTable(filteredForTable);
